@@ -1,4 +1,5 @@
 import { convertAdmonitions } from './admonitions'
+import { convertTabs } from './tabs'
 
 /**
  * Application entrypoint (triggered at the end of this file)
@@ -24,10 +25,10 @@ export function pipeline(input: string): string {
 
   // Apply all conversions in sequence
   result = convertAdmonitions(result)
+  result = convertTabs(result)
 
   // Future converters will be added here:
   // result = convertCodeFences(result)
-  // result = convertTabs(result)
 
   return result
 }

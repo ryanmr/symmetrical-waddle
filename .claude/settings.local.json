@@ -1,6 +1,11 @@
 {
   "permissions": {
-    "allow": ["Bash(pnpm test:*)", "Bash(pnpm run:*)"],
+    "allow": [
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run:*)",
+      "WebFetch(domain:squidfunk.github.io)",
+      "WebFetch(domain:starlight.astro.build)"
+    ],
     "deny": []
   }
 }
