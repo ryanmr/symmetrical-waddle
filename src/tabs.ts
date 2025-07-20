@@ -1,5 +1,5 @@
 import { visit } from 'unist-util-visit'
-import type { Code, Paragraph, Root, Text } from 'mdast'
+import type { Paragraph, Root, Text } from 'mdast'
 
 // reference documentation from material mkdocs on Content Tabs
 // https://squidfunk.github.io/mkdocs-material/reference/content-tabs/
@@ -47,6 +47,13 @@ export function transformTabs(tree: Root): void {
 
       if (!tabMatch) return
 
+      // Skip if this paragraph is already part of a detected tab group
+      const alreadyProcessed = tabGroups.some(
+        (group) =>
+          paragraphIndex >= group.startIndex && paragraphIndex < group.endIndex,
+      )
+      if (alreadyProcessed) return
+
       // Found start of a tab group - collect all consecutive tabs
       const tabs: Array<{ label: string; content: string }> = []
       let currentIndex = paragraphIndex
@@ -72,12 +79,14 @@ export function transformTabs(tree: Root): void {
 
         if (nextNode?.type === 'code') {
           content = nextNode.value
+          // Include both the paragraph and the code block in this tab
+          tabs.push({ label: tabLabel, content })
           currentIndex += 2 // Skip both paragraph and code block
         } else {
+          // Tab without content (just the paragraph)
+          tabs.push({ label: tabLabel, content })
           currentIndex += 1 // Skip just the paragraph
         }
-
-        tabs.push({ label: tabLabel, content })
       }
 
       if (tabs.length > 0) {

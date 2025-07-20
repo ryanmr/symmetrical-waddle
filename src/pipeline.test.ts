@@ -23,6 +23,9 @@ describe('pipeline', () => {
 
     const result = pipeline(input)
 
+    console.log('input', input)
+    console.log('result', result)
+
     // Should convert admonitions
     expect(result).toContain(':::tip[Choose your option]')
     expect(result).toContain(':::caution') // warning maps to caution
@@ -47,8 +50,6 @@ describe('pipeline', () => {
     Warning.`
 
     const result = pipeline(input)
-    console.log('MINIMAL RESULT:')
-    console.log(result)
 
     expect(result).toContain(':::caution')
   })

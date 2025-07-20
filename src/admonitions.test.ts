@@ -1,6 +1,6 @@
+import { fromMarkdown } from 'mdast-util-from-markdown'
 import { describe, expect, test } from 'vitest'
 import { transformAdmonitions } from './admonitions'
-import { fromMarkdown } from 'mdast-util-from-markdown'
 import { serializeTree } from './ast'
 
 describe('admonitions2 (AST-based)', () => {

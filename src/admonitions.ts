@@ -1,5 +1,5 @@
-import type { Code, Paragraph, Root, Text } from 'mdast'
 import { visit } from 'unist-util-visit'
+import type { Code, Paragraph, Root, Text } from 'mdast'
 
 // reference documentation from material mkdocs on Admonitions
 // https://squidfunk.github.io/mkdocs-material/reference/admonitions/
