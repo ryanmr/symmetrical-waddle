@@ -77,7 +77,8 @@ src/
 - ✅ Testing framework (vitest) configured
 - ✅ AST-based admonitions transformer (working)
 - ✅ AST-based pipeline with bulk processing
-- 🚧 AST-based tabs transformer (has bug with content preservation)
+- ✅ AST-based tabs transformer (working - bug fixed)
+- ⏳ Content rewriting transformers (next priority)
 - ⏳ CLI argument handling (future)
 - ⏳ File I/O operations (future)
 
@@ -89,7 +90,7 @@ src/
 
 ### Individual Transformers
 - `transformAdmonitions(tree: Root)` - AST-based admonition transformation
-- `transformTabs(tree: Root)` - AST-based tabs transformation (currently has bugs)
+- `transformTabs(tree: Root)` - AST-based tabs transformation with multi-group support
 
 ### Utilities
 - `serializeTree(tree: Root)` - Convert AST back to markdown with proper formatting
@@ -104,8 +105,8 @@ src/
 
 ### Test Coverage
 - `admonitions.test.ts` - AST-based admonition transformer tests
-- `tabs2.test.ts` - AST-based tabs transformer tests (reveals current bugs)
-- `ast-pipeline.test.ts` - Integration tests for AST pipeline
+- `tabs.test.ts` - AST-based tabs transformer tests with multi-group scenarios
+- `pipeline.test.ts` - Integration tests for AST pipeline (currently skipped)
 
 ### Test Examples
 The admonitions test demonstrates the expected conversion pattern:
@@ -121,17 +122,29 @@ The admonitions test demonstrates the expected conversion pattern:
     Content here`
 ```
 
-## Known Issues
+## Recent Fixes
 
-### AST-Based Tabs Transformer Bug
-The `transformTabs` function in `tabs.ts` has a bug where it incorrectly calculates node boundaries and removes content that should be preserved after tab groups. This affects:
+### Tabs Transformer Multi-Group Support (Fixed)
+**Problem:** The `transformTabs` function had a bug where multiple tab groups would consume content between them, causing content loss.
+
+**Solution:** Added overlap detection logic in `src/tabs.ts:51-54` to prevent the `visit` function from processing paragraphs that are already part of detected tab groups.
+
+**Impact:** Now correctly handles:
+- Multiple separate tab groups with content between them
 - Content immediately following tab groups (paragraphs, admonitions)
-- The AST pipeline when tabs and admonitions are used together
-- Multiple tab groups with content between them
+- Mixed content scenarios with tabs and other elements
 
-**Symptoms:** Warning admonitions and other content after tabs disappear from output.
-**Location:** `src/tabs.ts` line ~83 (endIndex calculation)
-**Tests:** `tabs2.test.ts` demonstrates the issue with detailed debug output
+## Next Development Phase
+
+### Content Rewriting Transformers
+The next set of changes will focus on content rewriting rather than complex markdown parsing. These transformers will be more subtle but expansive, handling:
+
+1. **Link Attribute Cleanup**: Remove Material MkDocs-specific link attributes like `{:target="_blank"}`
+2. **Image Path Updates**: Transform image paths to match new directory structures or CDN locations
+3. **Reference Link Cleanup**: Update or remove deprecated reference patterns
+4. **Content Sanitization**: Remove other MkDocs-specific annotations and attributes
+
+These transformers will likely operate on text content within AST nodes rather than restructuring the AST itself, making them conceptually simpler but potentially affecting more content across documents.
 
 ## Type Safety
 - Strict TypeScript configuration
