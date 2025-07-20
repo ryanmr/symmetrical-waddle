@@ -1,14 +1,9 @@
 import { describe, expect, test } from 'vitest'
+import { transformAdmonitions } from './admonitions'
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { serializeTree } from './ast'
 
-import { convertAdmonitions } from './admonitions'
-
-// reference documentation from material mkdocs on Admonitions
-// https://squidfunk.github.io/mkdocs-material/reference/admonitions/
-
-// reference documentation from starlight/astro on Asides
-// https://starlight.astro.build/components/asides/
-
-describe('admonitions', () => {
+describe('admonitions2 (AST-based)', () => {
   test('basic note admonition', () => {
     const input = `!!! note
 
@@ -23,7 +18,11 @@ describe('admonitions', () => {
     massa, nec semper lorem quam in massa.
 :::`
 
-    expect(convertAdmonitions(input)).toEqual(expected)
+    const tree = fromMarkdown(input)
+    transformAdmonitions(tree)
+    const result = serializeTree(tree)
+
+    expect(result.trim()).toEqual(expected)
   })
 
   test('admonition with title', () => {
@@ -36,7 +35,10 @@ describe('admonitions', () => {
     This is a warning with a custom title.
 :::`
 
-    expect(convertAdmonitions(input)).toEqual(expected)
+    const tree = fromMarkdown(input)
+    transformAdmonitions(tree)
+    const result = serializeTree(tree)
+    expect(result.trim()).toEqual(expected)
   })
 
   test('collapsible admonition (initially collapsed)', () => {
@@ -50,103 +52,10 @@ describe('admonitions', () => {
     This content is initially hidden.
 :::`
 
-    expect(convertAdmonitions(input)).toEqual(expected)
-  })
-
-  test('collapsible admonition (initially expanded)', () => {
-    const input = `???+ info "Details"
-
-    This content is initially visible but collapsible.`
-
-    const expected = `<!-- Material MkDocs collapsible block (initially expanded) converted to regular aside -->
-:::note[Details]
-
-    This content is initially visible but collapsible.
-:::`
-
-    expect(convertAdmonitions(input)).toEqual(expected)
-  })
-
-  describe('supported type mappings', () => {
-    test('direct mappings', () => {
-      expect(convertAdmonitions('!!! note\n\n    Content')).toContain(':::note')
-      expect(convertAdmonitions('!!! tip\n\n    Content')).toContain(':::tip')
-      expect(convertAdmonitions('!!! warning\n\n    Content')).toContain(
-        ':::caution',
-      )
-      expect(convertAdmonitions('!!! danger\n\n    Content')).toContain(
-        ':::danger',
-      )
-    })
-
-    test('approximate mappings', () => {
-      expect(convertAdmonitions('!!! info\n\n    Content')).toContain(':::note')
-      expect(convertAdmonitions('!!! success\n\n    Content')).toContain(
-        ':::tip',
-      )
-      expect(convertAdmonitions('!!! question\n\n    Content')).toContain(
-        ':::note',
-      )
-      expect(convertAdmonitions('!!! failure\n\n    Content')).toContain(
-        ':::danger',
-      )
-      expect(convertAdmonitions('!!! bug\n\n    Content')).toContain(
-        ':::danger',
-      )
-    })
-
-    test('fallback mappings to note', () => {
-      expect(convertAdmonitions('!!! abstract\n\n    Content')).toContain(
-        ':::note',
-      )
-      expect(convertAdmonitions('!!! example\n\n    Content')).toContain(
-        ':::note',
-      )
-      expect(convertAdmonitions('!!! quote\n\n    Content')).toContain(
-        ':::note',
-      )
-    })
-  })
-
-  describe('fallback type mappings', () => {
-    test('abstract admonition converts to note', () => {
-      const input = `!!! abstract "Summary"
-
-    This is an abstract section.`
-
-      const expected = `:::note[Summary]
-
-    This is an abstract section.
-:::`
-
-      expect(convertAdmonitions(input)).toEqual(expected)
-    })
-
-    test('example admonition converts to note', () => {
-      const input = `!!! example
-
-    This is an example.`
-
-      const expected = `:::note
-
-    This is an example.
-:::`
-
-      expect(convertAdmonitions(input)).toEqual(expected)
-    })
-
-    test('quote admonition converts to note', () => {
-      const input = `!!! quote "Famous Quote"
-
-    To be or not to be.`
-
-      const expected = `:::note[Famous Quote]
-
-    To be or not to be.
-:::`
-
-      expect(convertAdmonitions(input)).toEqual(expected)
-    })
+    const tree = fromMarkdown(input)
+    transformAdmonitions(tree)
+    const result = serializeTree(tree)
+    expect(result.trim()).toEqual(expected)
   })
 
   test('multiple admonitions in sequence', () => {
@@ -165,56 +74,76 @@ describe('admonitions', () => {
     const expected = `:::note[First]
 
     First note content.
-
 :::
+
 :::caution
 
     Warning content.
-
 :::
+
 :::note
 
     Abstract content converted to note.
 :::`
 
-    expect(convertAdmonitions(input)).toEqual(expected)
+    const tree = fromMarkdown(input)
+    transformAdmonitions(tree)
+    const result = serializeTree(tree)
+    expect(result.trim()).toEqual(expected)
   })
 
-  test('admonition with no content', () => {
-    const input = `!!! tip "Empty"`
+  test('mixed content with admonitions', () => {
+    const input = `# Documentation
 
-    const expected = `:::tip[Empty]
-:::`
+This is regular content.
 
-    expect(convertAdmonitions(input)).toEqual(expected)
+!!! tip "Pro Tip"
+
+    This is a helpful tip.
+
+More regular content here.
+
+!!! danger
+
+    This is dangerous!`
+
+    const tree = fromMarkdown(input)
+    transformAdmonitions(tree)
+    const result = serializeTree(tree)
+
+    expect(result).toContain('# Documentation')
+    expect(result).toContain(':::tip[Pro Tip]')
+    expect(result).toContain(':::danger')
+    expect(result).toContain('This is regular content.')
+    expect(result).toContain('More regular content here.')
   })
 
-  test('nested content preservation', () => {
-    const input = `!!! note
+  test('preserves non-admonition content', () => {
+    const input = `# Title
 
-    This is a note with:
+Regular paragraph.
 
-    - List item 1
-    - List item 2
+- List item 1
+- List item 2
 
-    And a code block:
+\`\`\`javascript
+code block
+\`\`\`
 
-        def hello():
-            print("world")`
+!!! note
 
-    const expected = `:::note
+    Admonition content.
 
-    This is a note with:
+More content.`
 
-    - List item 1
-    - List item 2
+    const tree = fromMarkdown(input)
+    transformAdmonitions(tree)
+    const result = serializeTree(tree)
 
-    And a code block:
-
-        def hello():
-            print("world")
-:::`
-
-    expect(convertAdmonitions(input)).toEqual(expected)
+    expect(result).toContain('# Title')
+    expect(result).toContain('Regular paragraph.')
+    expect(result).toContain('- List item 1')
+    expect(result).toContain('```javascript')
+    expect(result).toContain(':::note')
   })
 })

@@ -4,7 +4,10 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm run:*)",
       "WebFetch(domain:squidfunk.github.io)",
-      "WebFetch(domain:starlight.astro.build)"
+      "WebFetch(domain:starlight.astro.build)",
+      "Bash(pnpm add:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

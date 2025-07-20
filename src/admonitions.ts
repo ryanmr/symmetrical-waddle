@@ -1,3 +1,6 @@
+import type { Code, Paragraph, Root, Text } from 'mdast'
+import { visit } from 'unist-util-visit'
+
 // reference documentation from material mkdocs on Admonitions
 // https://squidfunk.github.io/mkdocs-material/reference/admonitions/
 
@@ -29,81 +32,108 @@ const ADMONITION_TYPE_MAP: Record<string, string> = {
 }
 
 /**
- * Converts Material MkDocs admonitions to Starlight asides.
- *
- * Supports:
- * - Standard admonitions: !!! type "title"
- * - Collapsible blocks: ??? type "title" (initially collapsed)
- * - Expanded collapsible: ???+ type "title" (initially expanded)
- * - All Material MkDocs admonition types with appropriate mapping
- *
- * @param input - Raw markdown string with Material MkDocs admonitions
- * @returns Converted markdown with Starlight aside syntax
+ * AST transformer function that converts Material MkDocs admonitions to Starlight asides.
+ * Inspired by Cloudflare's approach using mdast-util-* libraries for bulk processing.
  */
-export function convertAdmonitions(input: string): string {
-  const lines = input.split('\n')
-  const result: string[] = []
+export function transformAdmonitions(tree: Root): void {
+  const transformations: Array<{
+    paragraphIndex: number
+    codeIndex: number
+    parent: any
+    admonitionData: {
+      syntax: string
+      type: string
+      title?: string
+    }
+  }> = []
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  // First pass: identify admonition patterns (paragraph followed by code block)
+  visit(
+    tree,
+    'paragraph',
+    (paragraphNode: Paragraph, paragraphIndex, parent) => {
+      if (!parent || paragraphIndex === undefined) return
 
-    // Match standard (!!! type) and collapsible (??? or ???+ type) admonitions
-    const admonitionMatch = line.match(
-      /^(\?\?\?\+?|!!!)\s+(\w+)(?:\s+"([^"]*)")?/,
-    )
+      // Check if this paragraph contains an admonition marker
+      const firstChild = paragraphNode.children[0]
+      if (firstChild?.type !== 'text') return
 
-    if (admonitionMatch) {
+      const text = firstChild.value.trim()
+      const admonitionMatch = text.match(
+        /^(\?\?\?\+?|!!!)\s+(\w+)(?:\s+"([^"]*)")?$/,
+      )
+
+      if (!admonitionMatch) return
+
       const [, syntax, originalType, title] = admonitionMatch
+
+      // Look for the next code block (which should contain the admonition content)
+      const nextNodeIndex = paragraphIndex + 1
+      const nextNode = parent.children[nextNodeIndex]
+
+      if (nextNode?.type === 'code') {
+        transformations.push({
+          paragraphIndex,
+          codeIndex: nextNodeIndex,
+          parent,
+          admonitionData: {
+            syntax,
+            type: originalType,
+            title,
+          },
+        })
+      }
+    },
+  )
+
+  // Second pass: apply transformations in reverse order to avoid index shifting
+  transformations
+    .reverse()
+    .forEach(({ paragraphIndex, codeIndex, parent, admonitionData }) => {
+      const { syntax, type: originalType, title } = admonitionData
       const isCollapsible = syntax.startsWith('???')
       const isExpandedCollapsible = syntax === '???+'
 
       // Map the type to Starlight equivalent
-      const mappedType = ADMONITION_TYPE_MAP[originalType] || 'note' // Default to 'note' for unknown types
+      const mappedType = ADMONITION_TYPE_MAP[originalType] || 'note'
 
-      // Handle collapsible blocks
-      if (isCollapsible) {
-        // Starlight doesn't support collapsible asides directly
-        // Emit a comment and convert to regular aside
-        const collapsibleType = isExpandedCollapsible ? 'expanded' : 'collapsed'
-        result.push(
-          `<!-- Material MkDocs collapsible block (initially ${collapsibleType}) converted to regular aside -->`,
-        )
-      }
+      // Get the code block content
+      const codeNode = parent.children[codeIndex] as Code
+      const contentLines = codeNode.value.split('\n')
 
-      // Create the opening aside syntax
+      // Create the aside opening
       let asideStart = `:::${mappedType}`
       if (title) {
         asideStart += `[${title}]`
       }
 
-      result.push(asideStart)
+      // Handle collapsible blocks with a comment
+      const collapsibleComment = isCollapsible
+        ? `<!-- Material MkDocs collapsible block (initially ${isExpandedCollapsible ? 'expanded' : 'collapsed'}) converted to regular aside -->`
+        : ''
 
-      // Process subsequent lines that belong to this admonition
-      i++ // Move past the admonition declaration line
+      // Build the complete aside content
+      const asideLines = [
+        ...(collapsibleComment ? [collapsibleComment] : []),
+        asideStart,
+        '', // Empty line after opening
+        ...contentLines.map((line: string) => (line ? `    ${line}` : line)), // Re-indent content
+        ':::',
+      ]
 
-      while (i < lines.length) {
-        const contentLine = lines[i]
-
-        // Break if we hit content that's not part of the admonition
-        if (
-          contentLine.trim() !== '' &&
-          !contentLine.startsWith('    ') &&
-          !contentLine.startsWith('\t')
-        ) {
-          i-- // Step back one line
-          break
-        }
-
-        result.push(contentLine)
-        i++
+      // Create a new text node with the complete aside
+      const newTextNode: Text = {
+        type: 'text',
+        value: asideLines.join('\n'),
       }
 
-      // Add closing aside syntax
-      result.push(':::')
-    } else {
-      result.push(line)
-    }
-  }
+      // Replace the paragraph with the new content
+      const newParagraphNode: Paragraph = {
+        type: 'paragraph',
+        children: [newTextNode],
+      }
 
-  return result.join('\n')
+      // Replace both the paragraph and code nodes with the new aside
+      parent.children.splice(paragraphIndex, 2, newParagraphNode)
+    })
 }

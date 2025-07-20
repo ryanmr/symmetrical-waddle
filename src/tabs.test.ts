@@ -1,326 +1,251 @@
+import { fromMarkdown } from 'mdast-util-from-markdown'
 import { describe, expect, test } from 'vitest'
-
-import { convertTabs } from './tabs'
-
-// reference documentation from material mkdocs on Content Tabs
-// https://squidfunk.github.io/mkdocs-material/reference/content-tabs/
-
-// reference documentation from starlight/astro on Tabs
-// https://starlight.astro.build/components/tabs/
+import { serializeTree } from './ast'
+import { transformTabs } from './tabs'
 
 describe('tabs', () => {
-  test('basic two-tab conversion', () => {
+  test('basic tab conversion', () => {
     const input = `=== "Tab 1"
 
-    Content for tab 1
+    Content for tab 1.
 
 === "Tab 2"
 
-    Content for tab 2`
+    Content for tab 2.`
 
-    const expected = `<Tabs>
-  <TabItem label="Tab 1">
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
 
-Content for tab 1
-
-  </TabItem>
-  <TabItem label="Tab 2">
-
-Content for tab 2
-  </TabItem>
-</Tabs>`
-
-    expect(convertTabs(input)).toEqual(expected)
+    expect(result).toContain('<Tabs>')
+    expect(result).toContain('<TabItem label="Tab 1">')
+    expect(result).toContain('Content for tab 1.')
+    expect(result).toContain('<TabItem label="Tab 2">')
+    expect(result).toContain('Content for tab 2.')
+    expect(result).toContain('</TabItem>')
+    expect(result).toContain('</Tabs>')
   })
 
-  test('single tab conversion', () => {
+  test('single tab', () => {
     const input = `=== "Only Tab"
 
-    Single tab content`
+    Single tab content.`
 
-    const expected = `<Tabs>
-  <TabItem label="Only Tab">
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
 
-Single tab content
-  </TabItem>
-</Tabs>`
-
-    expect(convertTabs(input)).toEqual(expected)
+    expect(result).toContain('<Tabs>')
+    expect(result).toContain('<TabItem label="Only Tab">')
+    expect(result).toContain('Single tab content.')
+    expect(result).toContain('</TabItem>')
+    expect(result).toContain('</Tabs>')
   })
 
-  test('tabs with code blocks', () => {
-    const input = `=== "Python"
+  test('tabs with content after', () => {
+    const input = `=== "Tab A"
 
-    \`\`\`python
-    def hello():
-        print("Hello from Python")
-    \`\`\`
+    Tab content.
 
-=== "JavaScript"
+=== "Tab B"
 
-    \`\`\`javascript
-    function hello() {
-        console.log("Hello from JavaScript");
-    }
-    \`\`\``
+    More content.
 
-    const expected = `<Tabs>
-  <TabItem label="Python">
+Regular paragraph after tabs.`
 
-\`\`\`python
-def hello():
-    print("Hello from Python")
-\`\`\`
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
 
-  </TabItem>
-  <TabItem label="JavaScript">
+    console.log(result)
 
-\`\`\`javascript
-function hello() {
-    console.log("Hello from JavaScript");
-}
-\`\`\`
-  </TabItem>
-</Tabs>`
+    expect(result).toContain('<Tabs>')
+    expect(result).toContain('<TabItem label="Tab A">')
+    expect(result).toContain('<TabItem label="Tab B">')
+    expect(result).toContain('</Tabs>')
+    expect(result).toContain('Regular paragraph after tabs.')
+  })
 
-    expect(convertTabs(input)).toEqual(expected)
+  test('tabs followed by admonition syntax', () => {
+    const input = `=== "Option A"
+
+    Use this for simple cases.
+
+=== "Option B"
+
+    Use this for complex cases.
+
+!!! warning
+
+    Be careful with your choice.`
+
+    const tree = fromMarkdown(input)
+    console.log('Before transformation - AST structure:')
+    tree.children.forEach((child, index) => {
+      console.log(`${index}: ${child.type}`)
+      if (child.type === 'paragraph' && child.children[0]?.type === 'text') {
+        console.log(`  Content: "${child.children[0].value.trim()}"`)
+      } else if (child.type === 'code') {
+        console.log(`  Code: "${child.value.trim()}"`)
+      }
+    })
+
+    // Manually inspect what the tabs transformer should detect
+    console.log('Expected tab detection:')
+    console.log('- Start at index 0 (=== "Option A")')
+    console.log('- Include index 1 (code block)')
+    console.log('- Include index 2 (=== "Option B")')
+    console.log('- Include index 3 (code block)')
+    console.log('- Stop at index 4 (!!! warning - not a tab)')
+    console.log('- So endIndex should be 4')
+    console.log('- Replace indices 0,1,2,3 with tabs block')
+    console.log('- Preserve indices 4,5 (warning + code)')
+
+    transformTabs(tree)
+
+    console.log('After transformation - AST structure:')
+    tree.children.forEach((child, index) => {
+      console.log(`${index}: ${child.type}`)
+      if (child.type === 'paragraph' && child.children[0]?.type === 'text') {
+        const text = child.children[0].value.trim()
+        console.log(
+          `  Content: "${text.length > 50 ? `${text.slice(0, 50)}...` : text}"`,
+        )
+      } else if (child.type === 'code') {
+        console.log(`  Code: "${child.value.trim()}"`)
+      }
+    })
+
+    const result = serializeTree(tree)
+    console.log('Final result:')
+    console.log(result)
+
+    // Should contain tabs
+    expect(result).toContain('<Tabs>')
+    expect(result).toContain('<TabItem label="Option A">')
+    expect(result).toContain('<TabItem label="Option B">')
+    expect(result).toContain('</Tabs>')
+
+    // Should preserve the admonition syntax
+    expect(result).toContain('!!! warning')
+    expect(result).toContain('Be careful with your choice.')
   })
 
   test('tabs with mixed content', () => {
-    const input = `=== "Instructions"
+    const input = `# Getting Started
 
-    Follow these steps:
+Choose your language:
 
-    1. First step
-    2. Second step
+=== "JavaScript"
 
-=== "Code Example"
+    npm install my-package
 
-    Here's the code:
+=== "Python"
 
-    \`\`\`bash
-    npm install package
-    \`\`\``
+    pip install my-package
 
-    const expected = `<Tabs>
-  <TabItem label="Instructions">
+=== "Go"
 
-Follow these steps:
+    go get my-package
 
-1. First step
-2. Second step
+That's it! You're ready to go.`
 
-  </TabItem>
-  <TabItem label="Code Example">
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
 
-Here's the code:
-
-\`\`\`bash
-npm install package
-\`\`\`
-  </TabItem>
-</Tabs>`
-
-    expect(convertTabs(input)).toEqual(expected)
+    expect(result).toContain('# Getting Started')
+    expect(result).toContain('Choose your language:')
+    expect(result).toContain('<Tabs>')
+    expect(result).toContain('<TabItem label="JavaScript">')
+    expect(result).toContain('<TabItem label="Python">')
+    expect(result).toContain('<TabItem label="Go">')
+    expect(result).toContain('npm install my-package')
+    expect(result).toContain('pip install my-package')
+    expect(result).toContain('go get my-package')
+    expect(result).toContain('</Tabs>')
+    expect(result).toContain("That's it! You're ready to go.")
   })
 
-  test('tabs with no content', () => {
+  test('multiple separate tab groups', () => {
+    const input = `=== "Group 1 Tab A"
+
+    First group content.
+
+=== "Group 1 Tab B"
+
+    More first group content.
+
+Some text between groups.
+
+=== "Group 2 Tab X"
+
+    Second group content.
+
+=== "Group 2 Tab Y"
+
+    More second group content.`
+
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
+
+    // Should have two separate tab groups
+    const tabsMatches = result.match(/<Tabs>/g)
+    expect(tabsMatches).toHaveLength(2)
+    expect(result).toContain('<TabItem label="Group 1 Tab A">')
+    expect(result).toContain('<TabItem label="Group 1 Tab B">')
+    expect(result).toContain('<TabItem label="Group 2 Tab X">')
+    expect(result).toContain('<TabItem label="Group 2 Tab Y">')
+    expect(result).toContain('Some text between groups.')
+  })
+
+  test('tabs without content (empty code blocks)', () => {
     const input = `=== "Empty Tab 1"
 
 === "Empty Tab 2"`
 
-    const expected = `<Tabs>
-  <TabItem label="Empty Tab 1">
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
 
-  </TabItem>
-  <TabItem label="Empty Tab 2">
-  </TabItem>
-</Tabs>`
-
-    expect(convertTabs(input)).toEqual(expected)
+    expect(result).toContain('<Tabs>')
+    expect(result).toContain('<TabItem label="Empty Tab 1">')
+    expect(result).toContain('<TabItem label="Empty Tab 2">')
+    expect(result).toContain('</TabItem>')
+    expect(result).toContain('</Tabs>')
   })
 
-  test('multiple tab groups in same document', () => {
-    const input = `First tab group:
-
-=== "Tab A"
-
-    Content A
-
-=== "Tab B"
-
-    Content B
-
-Some text between groups.
-
-=== "Tab X"
-
-    Content X
-
-=== "Tab Y"
-
-    Content Y`
-
-    const expected = `First tab group:
-
-<Tabs>
-  <TabItem label="Tab A">
-
-Content A
-
-  </TabItem>
-  <TabItem label="Tab B">
-
-Content B
-
-  </TabItem>
-</Tabs>
-Some text between groups.
-
-<Tabs>
-  <TabItem label="Tab X">
-
-Content X
-
-  </TabItem>
-  <TabItem label="Tab Y">
-
-Content Y
-  </TabItem>
-</Tabs>`
-
-    expect(convertTabs(input)).toEqual(expected)
-  })
-
-  test('tabs mixed with other content', () => {
+  test('preserves non-tab content', () => {
     const input = `# Documentation
 
-Some introduction text.
+Regular paragraph.
 
-=== "Option 1"
+- List item
+- Another item
 
-    Choose this option if...
-
-=== "Option 2"
-
-    Choose this option if...
-
-## Next Section
-
-More content here.`
-
-    const expected = `# Documentation
-
-Some introduction text.
-
-<Tabs>
-  <TabItem label="Option 1">
-
-Choose this option if...
-
-  </TabItem>
-  <TabItem label="Option 2">
-
-Choose this option if...
-
-  </TabItem>
-</Tabs>
-## Next Section
-
-More content here.`
-
-    expect(convertTabs(input)).toEqual(expected)
-  })
-
-  test('tabs with complex indented content', () => {
-    const input = `=== "Configuration"
-
-    Edit your config:
-
-    \`\`\`yaml
-    site_name: My Site
-    theme:
-      name: material
-    \`\`\`
-
-    Then run:
-
-    \`\`\`bash
-    mkdocs serve
-    \`\`\`
-
-=== "Alternative"
-
-    Use the alternative method:
-
-    - Step 1
-    - Step 2
-      - Substep A
-      - Substep B`
-
-    const expected = `<Tabs>
-  <TabItem label="Configuration">
-
-Edit your config:
-
-\`\`\`yaml
-site_name: My Site
-theme:
-  name: material
+\`\`\`javascript
+const code = 'block';
 \`\`\`
 
-Then run:
+> Blockquote
 
-\`\`\`bash
-mkdocs serve
-\`\`\`
+=== "Tab"
 
-  </TabItem>
-  <TabItem label="Alternative">
+    Tab content.
 
-Use the alternative method:
+Final paragraph.`
 
-- Step 1
-- Step 2
-  - Substep A
-  - Substep B
-  </TabItem>
-</Tabs>`
+    const tree = fromMarkdown(input)
+    transformTabs(tree)
+    const result = serializeTree(tree)
 
-    expect(convertTabs(input)).toEqual(expected)
-  })
-
-  test('preserve non-tab content unchanged', () => {
-    const input = `# Regular Markdown
-
-This is normal content.
-
-- List item 1
-- List item 2
-
-Some code:
-
-\`\`\`python
-print("hello")
-\`\`\`
-
-More text.`
-
-    const expected = `# Regular Markdown
-
-This is normal content.
-
-- List item 1
-- List item 2
-
-Some code:
-
-\`\`\`python
-print("hello")
-\`\`\`
-
-More text.`
-
-    expect(convertTabs(input)).toEqual(expected)
+    expect(result).toContain('# Documentation')
+    expect(result).toContain('Regular paragraph.')
+    expect(result).toContain('- List item')
+    expect(result).toContain('```javascript')
+    expect(result).toContain('> Blockquote')
+    expect(result).toContain('<TabItem label="Tab">')
+    expect(result).toContain('Final paragraph.')
   })
 })

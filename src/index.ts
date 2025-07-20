@@ -1,6 +1,3 @@
-import { convertAdmonitions } from './admonitions'
-import { convertTabs } from './tabs'
-
 /**
  * Application entrypoint (triggered at the end of this file)
  */
@@ -13,24 +10,6 @@ export async function main() {
  */
 export async function cli() {
   // TODO cli impl
-}
-
-/**
- * Conversion pipeline (unified, re-family of packages).
- *
- * Converts material mkdocs markdown syntax into starlight/astro mdx syntax.
- */
-export function pipeline(input: string): string {
-  let result = input
-
-  // Apply all conversions in sequence
-  result = convertAdmonitions(result)
-  result = convertTabs(result)
-
-  // Future converters will be added here:
-  // result = convertCodeFences(result)
-
-  return result
 }
 
 main()

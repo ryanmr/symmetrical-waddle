@@ -1,3 +1,6 @@
+import { visit } from 'unist-util-visit'
+import type { Code, Paragraph, Root, Text } from 'mdast'
+
 // reference documentation from material mkdocs on Content Tabs
 // https://squidfunk.github.io/mkdocs-material/reference/content-tabs/
 
@@ -5,7 +8,7 @@
 // https://starlight.astro.build/components/tabs/
 
 /**
- * Converts Material MkDocs content tabs to Starlight tabs.
+ * AST transformer function that converts Material MkDocs content tabs to Starlight tabs.
  *
  * Transforms syntax from:
  * === "Tab Label"
@@ -19,95 +22,103 @@
  *   <TabItem label="Tab Label">Content here</TabItem>
  *   <TabItem label="Another Tab">More content</TabItem>
  * </Tabs>
- *
- * @param input - Raw markdown string with Material MkDocs tabs
- * @returns Converted markdown with Starlight tab syntax
  */
-export function convertTabs(input: string): string {
-  const lines = input.split('\n')
-  const result: string[] = []
+export function transformTabs(tree: Root): void {
+  const tabGroups: Array<{
+    startIndex: number
+    endIndex: number
+    parent: any
+    tabs: Array<{ label: string; content: string }>
+  }> = []
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  // First pass: identify tab groups
+  visit(
+    tree,
+    'paragraph',
+    (paragraphNode: Paragraph, paragraphIndex, parent) => {
+      if (!parent || paragraphIndex === undefined) return
 
-    // Check if this line starts a tab group
-    const tabMatch = line.match(/^===\s+"([^"]*)"/)
+      // Check if this paragraph starts a tab group
+      const firstChild = paragraphNode.children[0]
+      if (firstChild?.type !== 'text') return
 
-    if (tabMatch) {
-      // Found start of a tab group
-      const tabItems: Array<{ label: string; content: string[] }> = []
+      const text = firstChild.value.trim()
+      const tabMatch = text.match(/^===\s+"([^"]*)"$/)
 
-      // Process this tab and any subsequent tabs in the group
-      while (i < lines.length) {
-        const currentLine = lines[i]
-        const currentTabMatch = currentLine.match(/^===\s+"([^"]*)"/)
+      if (!tabMatch) return
 
-        if (!currentTabMatch) {
-          break // No more tabs in this group
-        }
+      // Found start of a tab group - collect all consecutive tabs
+      const tabs: Array<{ label: string; content: string }> = []
+      let currentIndex = paragraphIndex
+
+      while (currentIndex < parent.children.length) {
+        const currentNode = parent.children[currentIndex]
+
+        if (currentNode.type !== 'paragraph') break
+
+        const currentFirstChild = currentNode.children[0]
+        if (currentFirstChild?.type !== 'text') break
+
+        const currentText = currentFirstChild.value.trim()
+        const currentTabMatch = currentText.match(/^===\s+"([^"]*)"$/)
+
+        if (!currentTabMatch) break
 
         const [, tabLabel] = currentTabMatch
-        const tabContent: string[] = []
 
-        i++ // Move past the tab declaration line
+        // Look for the next code block (tab content)
+        const nextNode = parent.children[currentIndex + 1]
+        let content = ''
 
-        // Collect content for this tab until we hit another tab or end
-        while (i < lines.length) {
-          const contentLine = lines[i]
-
-          // Check if we hit another tab declaration
-          if (/^===\s+"[^"]*"/.test(contentLine)) {
-            break // Next tab found, don't increment i
-          }
-
-          // Check if we hit content that's not part of the tab (not indented)
-          if (
-            contentLine.trim() !== '' &&
-            !contentLine.startsWith('    ') &&
-            !contentLine.startsWith('\t')
-          ) {
-            break // End of tab group
-          }
-
-          tabContent.push(contentLine)
-          i++
+        if (nextNode?.type === 'code') {
+          content = nextNode.value
+          currentIndex += 2 // Skip both paragraph and code block
+        } else {
+          currentIndex += 1 // Skip just the paragraph
         }
 
-        tabItems.push({ label: tabLabel, content: tabContent })
+        tabs.push({ label: tabLabel, content })
       }
 
-      // Generate Starlight tabs syntax
-      if (tabItems.length > 0) {
-        result.push('<Tabs>')
-
-        for (const tab of tabItems) {
-          // Start TabItem with label
-          result.push(`  <TabItem label="${tab.label}">`)
-
-          // Add tab content (preserve indentation by removing 4 spaces or 1 tab)
-          for (const contentLine of tab.content) {
-            if (contentLine.startsWith('    ')) {
-              result.push(contentLine.slice(4)) // Remove 4 spaces
-            } else if (contentLine.startsWith('\t')) {
-              result.push(contentLine.slice(1)) // Remove 1 tab
-            } else {
-              result.push(contentLine) // Keep empty lines and other content as-is
-            }
-          }
-
-          // Close TabItem
-          result.push('  </TabItem>')
-        }
-
-        result.push('</Tabs>')
+      if (tabs.length > 0) {
+        tabGroups.push({
+          startIndex: paragraphIndex,
+          endIndex: currentIndex, // This is the first index AFTER the tab group
+          parent,
+          tabs,
+        })
       }
+    },
+  )
 
-      // Adjust i since we've processed multiple lines
-      i-- // Will be incremented by for loop
-    } else {
-      result.push(line)
+  // Second pass: apply transformations in reverse order
+  tabGroups.reverse().forEach(({ startIndex, endIndex, parent, tabs }) => {
+    // Build the Starlight tabs syntax
+    const tabLines = [
+      '<Tabs>',
+      ...tabs.flatMap((tab) => [
+        `  <TabItem label="${tab.label}">`,
+        // Re-indent the content
+        ...tab.content.split('\n').map((line) => line),
+        '  </TabItem>',
+      ]),
+      '</Tabs>',
+    ]
+
+    // Create a new text node with the complete tabs content
+    const newTextNode: Text = {
+      type: 'text',
+      value: tabLines.join('\n'),
     }
-  }
 
-  return result.join('\n')
+    // Create a new paragraph node
+    const newParagraphNode: Paragraph = {
+      type: 'paragraph',
+      children: [newTextNode],
+    }
+
+    // Replace all the tab nodes with the new tabs content
+    const nodesToReplace = endIndex - startIndex
+    parent.children.splice(startIndex, nodesToReplace, newParagraphNode)
+  })
 }

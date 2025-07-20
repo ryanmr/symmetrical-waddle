@@ -41,35 +41,71 @@ This project uses **pnpm** as the package manager.
   - `remark-parse` / `remark-stringify` - Parsing and stringifying
   - `unist-util-visit` - AST traversal
   - `mdast-util-to-string` - Extract strings from AST nodes
+  - `mdast-util-from-markdown` / `mdast-util-to-markdown` - Low-level AST parsing/serialization
+  - `@types/mdast` - TypeScript types for AST nodes
 
 ### Project Structure
 ```
 src/
-├── index.ts              # CLI entry point (currently placeholder)
-├── admonitions.ts        # Material MkDocs → Starlight admonition converter
-└── admonitions.test.ts   # Co-located test for admonitions
+├── index.ts              # Main entry point with pipeline functions
+├── admonitions.ts        # AST-based Material MkDocs → Starlight admonition transformer
+├── admonitions.test.ts   # Tests for admonitions transformer
+├── tabs.ts               # AST-based Material MkDocs → Starlight tabs transformer
+├── tabs2.test.ts         # Tests for AST-based tabs transformer
+├── ast.ts                # Shared AST utilities (serializeTree function)
+└── ast-pipeline.test.ts  # Tests for AST-based pipeline
 ```
 
+### Architecture Approach
+
+#### AST-Based Processing (Current)
+- Follows Cloudflare documentation migration pattern
+- Parse once → multiple AST transformations → serialize once
+- Optimized for bulk document processing
+- Better composability and type safety
+- Uses unified/remark ecosystem for reliable markdown manipulation
+
 ### Development Philosophy
-1. **String-based testing first**: Direct syntax transformation testing before file I/O
-2. **AST-driven conversion**: Uses unified/remark for reliable markdown parsing
-3. **Modular converters**: Individual modules for each syntax type
-4. **Test-driven development**: Write failing tests before implementation
+1. **AST-driven conversion**: Uses unified/remark for reliable markdown parsing
+2. **Bulk processing optimization**: Single parse/serialize cycle for multiple transformations
+3. **Modular transformers**: Individual transformer functions for each syntax type
+4. **Test-driven development**: Comprehensive test coverage with isolated transformer testing
+5. **Type safety**: Full TypeScript support with proper AST node types
 
 ### Current Implementation Status
 - ✅ Project infrastructure and build setup complete
 - ✅ Testing framework (vitest) configured
-- 🚧 Converter implementations needed (admonitions stub exists)
+- ✅ AST-based admonitions transformer (working)
+- ✅ AST-based pipeline with bulk processing
+- 🚧 AST-based tabs transformer (has bug with content preservation)
 - ⏳ CLI argument handling (future)
 - ⏳ File I/O operations (future)
+
+## API Functions
+
+### Pipeline Functions (index.ts)
+- `astPipeline(input: string)` - AST-based single-parse transformations (main function)
+- `bulkTransform(files)` - Process multiple files efficiently using AST pipeline
+
+### Individual Transformers
+- `transformAdmonitions(tree: Root)` - AST-based admonition transformation
+- `transformTabs(tree: Root)` - AST-based tabs transformation (currently has bugs)
+
+### Utilities
+- `serializeTree(tree: Root)` - Convert AST back to markdown with proper formatting
 
 ## Testing Strategy
 
 ### Test Organization
 - Co-located tests in `src/` for component-specific testing
-- Integration tests in `tests/` directory
-- Focus on string-to-string conversion validation
+- Integration tests for AST pipeline
+- Focus on AST transformation validation
 - Use vitest as the testing framework
+
+### Test Coverage
+- `admonitions.test.ts` - AST-based admonition transformer tests
+- `tabs2.test.ts` - AST-based tabs transformer tests (reveals current bugs)
+- `ast-pipeline.test.ts` - Integration tests for AST pipeline
 
 ### Test Examples
 The admonitions test demonstrates the expected conversion pattern:
@@ -84,6 +120,18 @@ The admonitions test demonstrates the expected conversion pattern:
 
     Content here`
 ```
+
+## Known Issues
+
+### AST-Based Tabs Transformer Bug
+The `transformTabs` function in `tabs.ts` has a bug where it incorrectly calculates node boundaries and removes content that should be preserved after tab groups. This affects:
+- Content immediately following tab groups (paragraphs, admonitions)
+- The AST pipeline when tabs and admonitions are used together
+- Multiple tab groups with content between them
+
+**Symptoms:** Warning admonitions and other content after tabs disappear from output.
+**Location:** `src/tabs.ts` line ~83 (endIndex calculation)
+**Tests:** `tabs2.test.ts` demonstrates the issue with detailed debug output
 
 ## Type Safety
 - Strict TypeScript configuration
