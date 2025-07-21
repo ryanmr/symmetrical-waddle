@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-import { type ConversionConfig, defaultConfig, validateConfig } from './config'
+import { defaultConfig, validateConfig, type ConversionConfig } from './config'
 import { convert } from './converter'
 
 // Export all main functionality

@@ -13,13 +13,13 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "mkdocs-to-starlight": "./dist/index.js",
-    "converter": "./dist/index.js"
-  },
   "exports": {
     ".": "./dist/index.js",
     "./package.json": "./package.json"
+  },
+  "bin": {
+    "mkdocs-to-starlight": "./dist/index.js",
+    "converter": "./dist/index.js"
   },
   "publishConfig": {
     "access": "public"
