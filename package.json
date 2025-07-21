@@ -13,6 +13,10 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "mkdocs-to-starlight": "./dist/index.js",
+    "converter": "./dist/index.js"
+  },
   "exports": {
     ".": "./dist/index.js",
     "./package.json": "./package.json"
@@ -24,7 +28,9 @@
     "lint": "eslint --cache .",
     "lint:fix": "pnpm run lint --fix",
     "build": "tsdown",
-    "start": "tsdown && node ./dist/index.ts",
+    "start": "tsdown && node ./dist/index.js",
+    "convert": "pnpm run build && node ./dist/index.js",
+    "convert:dry-run": "pnpm run build && node ./dist/index.js --dry-run --verbose",
     "dev": "tsdown --watch",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
@@ -44,12 +50,15 @@
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
     "unified": "^11.0.5",
-    "unist-util-visit": "^5.0.0"
+    "unist-util-visit": "^5.0.0",
+    "yargs": "^18.0.0",
+    "zod": "^4.0.5"
   },
   "devDependencies": {
     "@sxzz/eslint-config": "^7.0.1",
     "@sxzz/prettier-config": "^2.2.1",
     "@types/node": "^22.15.17",
+    "@types/yargs": "^17.0.33",
     "bumpp": "^10.1.0",
     "eslint": "^9.26.0",
     "happy-dom": "^17.4.7",

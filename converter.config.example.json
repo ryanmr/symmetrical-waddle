@@ -1,0 +1,28 @@
+{
+  "sections": [
+    {
+      "slug": "docs",
+      "sectionName": "Documentation",
+      "contentPath": "./output/content/docs",
+      "publicAssetsPath": "/assets/docs/",
+      "optimizedAssetsPath": "./output/assets/docs",
+      "originalPath": "./input/docs"
+    },
+    {
+      "slug": "guides",
+      "sectionName": "User Guides",
+      "contentPath": "./output/content/guides",
+      "publicAssetsPath": "/assets/guides/",
+      "optimizedAssetsPath": "./output/assets/guides",
+      "originalPath": "./input/guides"
+    },
+    {
+      "slug": "api",
+      "sectionName": "API Reference",
+      "contentPath": "./output/content/api",
+      "publicAssetsPath": "/assets/api/",
+      "optimizedAssetsPath": "./output/assets/api",
+      "originalPath": "./input/api-docs"
+    }
+  ]
+}
